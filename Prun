@@ -1,0 +1,88 @@
+#!/bin/bash
+# 功能:
+#   在多台机器上批量执行命令
+#
+# Usage:
+#   ./Prun -r 'CSV-RANGE' 'COMMAND'
+#   ./Prun -f HOSTSFILE 'COMMAND'
+#   ./Prun -h
+#
+# 依赖:
+#   * pssh
+#   * sshpass
+#
+# 时间:
+#   2018-09-30
+
+passwd=$(cat ~/.passwd)
+hFlag=0
+rFlag=0
+cmd=""
+
+function help()
+{
+	echo -e "Usage:"
+	echo -e "\t$(basename $0) -r 'CSV-RANGE' 'COMMAND'"
+	echo -e "\t$(basename $0) -f HOSTSFILE 'COMMAND'"
+	echo -e "\t$(basename $0) -h"
+}
+
+while getopts ":r:f:" opt
+do
+	case $opt in
+		h)
+			help
+			exit 0
+			;;
+		f)
+			fFlag=1
+			hostfile=$OPTARG
+			;;
+		r)
+			rFlag=1
+			range=$OPTARG
+			;;
+		\?)
+			echo "Unrecognized option -$OPTARG"
+			exit 1
+			;;
+	esac
+done
+shift "$(($OPTIND-1))"
+
+if [ $# -eq 0 ]
+then
+	help
+	exit 0
+fi
+
+let sum=rFlag+fFlag
+
+if [ $sum -eq 0 ]
+then
+	echo -e "Error usage."
+	help
+	exit 1
+elif [ $sum -eq 2 ]
+then
+	echo -e "Error: -r can't use with -f"
+	help
+	exit 1
+fi
+
+cmd=$1
+
+
+if [ $rFlag -eq 1 ]
+then
+	hostfile=$(mktemp)
+	echo "$range" | sed 's/,/ /g' | xargs -n 1 > $hostfile
+fi
+
+# Run command
+sshpass -p${passwd} pssh -A -x '-o StrictHostKeyChecking=no' -p 1000 --inline -h $hostfile  "$cmd"
+
+if [ $rFlag -eq 1 ]
+then
+	\rm $hostfile
+fi
